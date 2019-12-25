@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/buaazp/fasthttprouter"
+	"github.com/fasthttp/router"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/valyala/fasthttp"
@@ -17,19 +17,20 @@ var (
 	requestHandlerPool sync.Pool
 )
 
+// FasthttpHandlerFunc  handler
 type FasthttpHandlerFunc func(*fasthttp.RequestCtx)
 
 type Prometheus struct {
 	reqCnt            *prometheus.CounterVec
 	reqDur            *prometheus.HistogramVec
 	reqSize, respSize prometheus.Summary
-	router            *fasthttprouter.Router
+	router            *router.Router
 
 	MetricsPath string
 }
 
+// NewPrometheus new
 func NewPrometheus(subsystem string) *Prometheus {
-
 	p := &Prometheus{
 		MetricsPath: defaultMetricPath,
 	}
@@ -42,13 +43,12 @@ func prometheusHandler() fasthttp.RequestHandler {
 	return fasthttpadaptor.NewFastHTTPHandler(promhttp.Handler())
 }
 
-func (p *Prometheus) WrapHandler(r *fasthttprouter.Router) fasthttp.RequestHandler {
-
+func (p *Prometheus) WrapHandler(r *router.Router) fasthttp.RequestHandler {
 	// Setting prometheus metrics handler
 	r.GET(p.MetricsPath, prometheusHandler())
 
 	return func(ctx *fasthttp.RequestCtx) {
-		if string(ctx.Request.URI().Path()) == defaultMetricPath {
+		if string(ctx.Request.URI().Path()) == p.MetricsPath {
 			r.Handler(ctx)
 			return
 		}
@@ -79,7 +79,7 @@ func computeApproximateRequestSize(ctx *fasthttp.Request, out chan int) {
 		s += len(ctx.URI().Path())
 		s += len(ctx.URI().Host())
 	}
-	
+
 	s += len(ctx.Header.Method())
 	s += len("HTTP/1.1")
 
@@ -97,7 +97,6 @@ func computeApproximateRequestSize(ctx *fasthttp.Request, out chan int) {
 }
 
 func (p *Prometheus) registerMetrics(subsystem string) {
-
 	RequestDurationBucket := []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10, 15, 20, 30, 40, 50, 60}
 
 	p.reqCnt = prometheus.NewCounterVec(
@@ -143,8 +142,8 @@ func acquireRequestFromPool() *fasthttp.Request {
 
 	if rp == nil {
 		return new(fasthttp.Request)
-	} 
-	
+	}
+
 	frc := rp.(*fasthttp.Request)
 	return frc
 }
